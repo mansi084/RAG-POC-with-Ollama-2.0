@@ -19,3 +19,7 @@ loader:
     - pdf
     - txt
     - docx
+
+database:
+  provider: sqlite        
+  path: ./my_db.sqlite

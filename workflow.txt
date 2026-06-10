@@ -1,8 +1,14 @@
-User uploads document → train it → User asks question → get answer
+================================================================
+PROJECT WORKFLOW — RAG POC with Ollama + SQLite
+================================================================
 
+The Big Picture:
+User uploads document → trains RAG → User asks question → Router decides source → Best answer returned
 
+================================================================
+PART 1 — When Server Starts Up
+================================================================
 
-Part 1 — When Server Starts Up
 app.py starts
       ↓
 creates RAGService object
@@ -17,16 +23,27 @@ calls llm_factory → creates llama3
       ↓
 calls vectorstore_factory → connects to ChromaDB
       ↓
-creates text splitter with chunk_size=500
+creates text splitter (chunk_size=500, overlap=50)
+      ↓
+creates DocumentSource (ChromaDB + LLM)
+      ↓
+creates DatabaseSource (SQLite + LLM)
+      ↓
+creates QueryRouter (LLM decides which source)
+      ↓
+creates Reranker (LLM combines best answers)
       ↓
 Server is ready! 
 
+================================================================
+PART 2 — When User Uploads a Document
+================================================================
 
-
-Part 2 — When User Uploads a Document
 User sends PDF to → POST /upload
       ↓
 app.py receives the file
+      ↓
+saves file to ./documents/ folder
       ↓
 calls rag_service.train("file.pdf")
       ↓
@@ -40,62 +57,128 @@ nomic-embed-text converts each chunk to vectors (768 numbers)
       ↓
 ChromaDB saves all vectors to ./my_database folder
       ↓
+immediately available for queries (online training!) 
+      ↓
 returns "Successfully trained on X chunks!" 
 
+================================================================
+PART 3 — When User Asks a Question (NEW!)
+================================================================
 
-
-Part 3 — When User Asks a Question
 User sends "What is the leave policy?" to → POST /ask
       ↓
 app.py receives the question
       ↓
 calls rag_service.ask("What is the leave policy?")
       ↓
-retriever converts question to vector using nomic-embed-text
+QueryRouter reads the question
       ↓
-ChromaDB searches for top 3 similar chunks
+asks LLM → "which source should answer this?"
       ↓
-found chunks passed as {context} into prompt template
+      ↓————————————————————————————————↓
+   "document"        "both"        "database"
+      ↓                ↓               ↓
+ChromaDB only    ChromaDB AND      SQLite only
+                   SQLite
+      ↓————————————————————————————————↓
       ↓
-question passed as {question} into prompt template
-      ↓
-filled prompt sent to llama3
-      ↓
-llama3 reads context and generates answer
-      ↓
-StrOutputParser converts to clean text
-      ↓
-answer returned to user 
+DocumentSource (if needed):
+  → retriever searches ChromaDB for top 3 chunks
+  → chunks passed as context to LLM
+  → LLM generates answer
+  → returns answer with confidence score
 
+DatabaseSource (if needed):
+  → LLM converts question to SQL query
+  → SQL query runs against SQLite
+  → results converted to natural language
+  → returns answer with confidence score
+      ↓
+Reranker receives all answers
+      ↓
+if only one answer → return directly
+if multiple answers → LLM combines into best answer
+      ↓
+Final answer returned to user ✅
 
+================================================================
+PART 4 — How All Files Connect
+================================================================
 
-How all files connect:
-config.yaml
-(settings)
-    ↓
+config.yaml (settings)
+      ↓
 rag_service.py (brain of the project)
-    ↓           ↓           ↓
-embedding_    llm_      vectorstore_
-factory.py   factory.py  factory.py
-(picks        (picks      (picks
-embedding)    LLM)        vector DB)
+    ↓         ↓         ↓         ↓        ↓
+embedding_ llm_    vectorstore_ sources/ router/
+factory    factory  factory
+    ↓                              ↓        ↓
+nomic-               document_  database_ query_
+embed-text           source.py  source.py router.py
+                     (ChromaDB) (SQLite)
+                                            ↓
+                                        reranker/
+                                        reranker.py
     ↓
 loaders/
-document_loader.py
-(reads PDF/TXT/DOCX)
-    ↓
-app.py (front door)
-(receives requests from outside world)
+document_loader.py (reads PDF/TXT/DOCX)
+      ↓
+app.py (front door — receives all requests)
 
+================================================================
+PART 5 — One Line Per File
+================================================================
 
+config.yaml               → All settings in one place
+app.py                    → Front door — receives requests
+rag_service.py            → Brain — connects everything
+setup_database.py         → Loads CSV data into SQLite
 
-One line per file:
-config.yaml - All settings in one place
-rag_service.py - Brain — connects everything
-embedding_factory.py - Creates the right embedding model
-llm_factory.py - Creates the right LLM
-vectorstore_factory.py - Creates the right vector DB
-document_loader.py - Reads and extracts text from files
-app.py - Front door — receives requests
+factories/
+  embedding_factory.py    → Creates the right embedding model
+  llm_factory.py          → Creates the right LLM
+  vectorstore_factory.py  → Creates the right vector DB
 
+loaders/
+  document_loader.py      → Reads and extracts text from files
 
+sources/
+  document_source.py      → Searches ChromaDB and answers
+  database_source.py      → Queries SQLite and answers
+
+router/
+  query_router.py         → Decides which source to use
+
+reranker/
+  reranker.py             → Combines best answers from sources
+
+================================================================
+PART 6 — Routing Logic
+================================================================
+
+Question type                          → Routed to
+─────────────────────────────────────────────────────
+"What is the leave policy?"            → document
+"What are office timings?"             → document
+"How many employees are in Sales?"     → database
+"What is average salary in HR?"        → database
+"Does salary match the policy range?"  → both
+
+================================================================
+PART 7 — Pluggable Architecture
+================================================================
+
+Want to change LLM?
+  config.yaml → llm → model: mistral 
+
+Want to change embedding?
+  config.yaml → embedding → model: ... 
+
+Want to change vector DB?
+  config.yaml → vectorstore → provider: pinecone 
+
+Want to change SQL database?
+  config.yaml → database → provider: postgresql 
+
+Nothing else changes! 
+
+================================================================
