@@ -3,3 +3,5 @@ my_database/
 __pycache__/
 *.pyc
 .env
+my_db.sqlite
+WA_Fn-UseC_-HR-Employee-Attrition.csv
