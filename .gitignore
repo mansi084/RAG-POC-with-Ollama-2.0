@@ -4,4 +4,5 @@ __pycache__/
 *.pyc
 .env
 my_db.sqlite
-WA_Fn-UseC_-HR-Employee-Attrition.csv
+*.csv
+*.sqlite
