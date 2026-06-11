@@ -17,8 +17,9 @@ A **Proof of Concept** for a **RAG (Retrieval Augmented Generation)** system tha
 4. Stores vectors locally in ChromaDB
 5. Also queries a local SQLite employee database
 6. Routes your question to the right source intelligently
-7. Combines answers from multiple sources
-8. Returns the most accurate answer
+7. Falls back to other source if first source fails
+8. Combines answers from multiple sources
+9. Returns the most accurate answer
 
 ---
 
@@ -42,13 +43,14 @@ User asks a Question
   ↓
 Query Router (decides which source to use)
   ↓            
-Document Source   OR    Database Source
+Document Source   OR    Database Source    OR       Both
 (ChromaDB)                 (SQLite)
-
   ↓
-Reranker (combines best answers)
+Answer found? → Reranker → Final Answer 
   ↓
-Final Answer returned to user
+Not found? → Fallback → try other source
+  ↓
+Still not found? → "No information found"
 
 ---
 
