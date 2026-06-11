@@ -3,7 +3,10 @@ PROJECT WORKFLOW — RAG POC with Ollama + SQLite
 ================================================================
 
 The Big Picture:
-User uploads document → trains RAG → User asks question → Router decides source → Best answer returned
+User uploads document → trains RAG → User asks question →
+Router decides source → Answer found? → Return it
+                      → No answer? → Fallback → try other source
+                      → Still nothing? → "No information found"
 
 ================================================================
 PART 1 — When Server Starts Up
@@ -62,14 +65,14 @@ immediately available for queries (online training!)
 returns "Successfully trained on X chunks!" 
 
 ================================================================
-PART 3 — When User Asks a Question (NEW!)
+PART 3 — When User Asks a Question
 ================================================================
 
-User sends "What is the leave policy?" to → POST /ask
+User sends question to → POST /ask
       ↓
 app.py receives the question
       ↓
-calls rag_service.ask("What is the leave policy?")
+calls rag_service.ask(question)
       ↓
 QueryRouter reads the question
       ↓
@@ -86,20 +89,34 @@ DocumentSource (if needed):
   → retriever searches ChromaDB for top 3 chunks
   → chunks passed as context to LLM
   → LLM generates answer
-  → returns answer with confidence score
+  → returns answer with confidence score (high/medium/low)
 
 DatabaseSource (if needed):
   → LLM converts question to SQL query
+  → cleans up SQL (removes markdown, extra text)
   → SQL query runs against SQLite
-  → results converted to natural language
+  → results converted to natural language by LLM
   → returns answer with confidence score
       ↓
-Reranker receives all answers
+Answers collected
       ↓
-if only one answer → return directly
-if multiple answers → LLM combines into best answer
+      ↓————————————————————————————————↓
+  answers found?              no answers found?
+      ↓                              ↓
+  Reranker                    FALLBACK kicks in!
+      ↓                              ↓
+  1 answer →              router said "document"?
+  return directly          → try database instead
+      ↓                              ↓
+  2 answers →             router said "database"?
+  LLM combines             → try documents instead
+  into best answer               ↓
+      ↓                    answer found? → Reranker
+      ↓                    still nothing? →
+      ↓                    "No information found"
+      ↓————————————————————————————————↓
       ↓
-Final answer returned to user ✅
+Final answer returned to user 
 
 ================================================================
 PART 4 — How All Files Connect
@@ -108,16 +125,16 @@ PART 4 — How All Files Connect
 config.yaml (settings)
       ↓
 rag_service.py (brain of the project)
-    ↓         ↓         ↓         ↓        ↓
-embedding_ llm_    vectorstore_ sources/ router/
-factory    factory  factory
-    ↓                              ↓        ↓
-nomic-               document_  database_ query_
-embed-text           source.py  source.py router.py
-                     (ChromaDB) (SQLite)
-                                            ↓
-                                        reranker/
-                                        reranker.py
+    ↓         ↓          ↓          ↓         ↓
+embedding_  llm_    vectorstore_  sources/  router/
+factory     factory  factory
+    ↓                               ↓         ↓
+nomic-                document_  database_  query_
+embed-text            source.py  source.py  router.py
+                      (ChromaDB) (SQLite)
+                                              ↓
+                                          reranker/
+                                          reranker.py
     ↓
 loaders/
 document_loader.py (reads PDF/TXT/DOCX)
@@ -143,7 +160,7 @@ loaders/
 
 sources/
   document_source.py      → Searches ChromaDB and answers
-  database_source.py      → Queries SQLite and answers
+  database_source.py      → Converts question to SQL and answers
 
 router/
   query_router.py         → Decides which source to use
@@ -155,16 +172,36 @@ reranker/
 PART 6 — Routing Logic
 ================================================================
 
-Question type                          → Routed to
-─────────────────────────────────────────────────────
-"What is the leave policy?"            → document
-"What are office timings?"             → document
-"How many employees are in Sales?"     → database
-"What is average salary in HR?"        → database
-"Does salary match the policy range?"  → both
+Question type                           → Routed to
+──────────────────────────────────────────────────────
+"What is the leave policy?"             → document
+"What are office timings?"              → document
+"How many employees are in Sales?"      → database
+"What is average salary in HR?"         → database
+"Does salary match the policy range?"   → both
+Router wrong → no answer found          → fallback 
 
 ================================================================
-PART 7 — Pluggable Architecture
+PART 7 — Fallback Mechanism (NEW!)
+================================================================
+
+Router says "document" but no answer found:
+  → automatically tries database
+  → if found → return answer 
+  → if not found → "No information found"
+
+Router says "database" but no answer found:
+  → automatically tries documents
+  → if found → return answer 
+  → if not found → "No information found"
+
+This ensures:
+  → Router mistakes are handled gracefully 
+  → No dead ends 
+  → Always best effort answer 
+
+================================================================
+PART 8 — Pluggable Architecture
 ================================================================
 
 Want to change LLM?
