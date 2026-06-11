@@ -113,6 +113,21 @@ project/
 
 ---
 
+## Dataset
+
+This project uses a sample of the IBM HR Analytics Employee 
+Attrition Dataset for testing purposes.
+
+- **Sample included** → `WA_Fn-UseC_-HR-Employee-Attrition.csv`
+- **Full dataset** → [Download from Kaggle](https://www.kaggle.com/datasets/pavansubhasht/ibm-hr-analytics-attrition-dataset)
+
+To setup the database run:
+```bash
+python setup_database.py
+```
+
+---
+
 ## Setup & Installation
 
 ### Step 1 — Clone the repository
