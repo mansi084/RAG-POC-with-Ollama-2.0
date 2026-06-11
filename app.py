@@ -6,7 +6,7 @@ from rag_service import RAGService #Imports your RAGService class — the brain 
 
 app = FastAPI() #creates fast api app
 
-rag_service = RAGService() #Create RAGService object
+rag_service = RAGService() #Create RAG Service object
 
 class QuestionRequest(BaseModel): #This is the structure of the question request
     question: str
