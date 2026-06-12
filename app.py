@@ -36,4 +36,3 @@ async def ask_question(request: QuestionRequest):
     answer = rag_service.ask(request.question) #request.question - Get the value stored in the question attribute of the request object.
 
     return {"answer": answer}
-

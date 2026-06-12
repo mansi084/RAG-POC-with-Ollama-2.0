@@ -14,6 +14,7 @@ from reranker.reranker import Reranker
 
 
 import yaml #read config.yaml to this file
+import os
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter #Splits your documents into small chunks
 # from langchain_core.prompts import ChatPromptTemplate #Creates a template for how you ask questions to the LLM
@@ -53,7 +54,7 @@ class RAGService():
 
 
    
-    def train(self,file_path:str):
+    def train(self, file_path: str):
         # Load document from loaders folder
         documents = load_document(file_path)  #uses loaders/document_loader.py
         
@@ -110,3 +111,4 @@ class RAGService():
 
         # Step 5 - Rerank and return best answer
         return self.reranker.rerank(question, answers)
+    

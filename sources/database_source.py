@@ -45,9 +45,19 @@ class DatabaseSource:
             
             #Convert results to natural language
             answer_prompt = f"""
-            Convert these database results to a natural answer:
+            Answer the question using only these database results.
+
             Question: {question}
-            Results: {results}
+
+            Results:
+            {results}
+
+            Rules:
+            - Return only the answer.
+            - Do not add introductions.
+            - Do not add explanations.
+            - Do not write "Here's the answer".
+            - Do not write "According to the results".
             """
 
             answer = self.llm.invoke(answer_prompt)
